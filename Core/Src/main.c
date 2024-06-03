@@ -18,10 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "liquidcrystal_i2c.h"
+#include "usbd_cdc_if.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,6 +59,8 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint8_t dataBuffer[64];
+uint8_t newData=0;
 char* itoa(int value, char* result, int base) {
 	// check that the base if valid
 	if (base < 2 || base > 36) { *result = '\0'; return result; }
@@ -78,6 +83,69 @@ char* itoa(int value, char* result, int base) {
 		*ptr1++ = tmp_char;
 	}
 	return result;
+}
+void printMessage(char* message) {
+	char* lastchar=strrchr(message, ')');
+	if(lastchar==NULL) {
+		CDC_Transmit_FS((uint8_t *)"Print() requires both parentheses\n         ^\n", 45);
+		return;
+	}
+	*lastchar='\0';
+	uint8_t messageLength=strlen(message);
+	CDC_Transmit_FS((uint8_t *)message, messageLength);
+	if(messageLength>16) {
+		HD44780_Clear();
+		HD44780_SetCursor(0,0);
+		HD44780_PrintStr(message);
+		HD44780_SetCursor(0,1);
+		HD44780_PrintStr(message+16);
+	} else {
+		HD44780_Clear();
+		HD44780_SetCursor(0,0);
+		HD44780_PrintStr(message);
+	}
+}
+void printTime(uint8_t* time) {
+	while(!newData) {
+		HD44780_Clear();
+		HD44780_SetCursor(0,0);
+		HD44780_PrintStr((char *)time);
+		time[7]++;
+		if(time[7]==':'){
+			time[7]='0';
+			time[6]++;
+			if(time[6]=='6') {
+				time[6]='0';
+				time[4]++;
+				if(time[4]==':'){
+					time[4]='0';
+					time[3]++;
+					if(time[3]=='6') {
+						time[3]='0';
+						time[1]++;
+						if(time[1]==':'){
+							time[1]='0';
+							time[0]++;
+						}
+						if(time[0]=='2' && time[1]=='4') {
+							time[0]='0';
+							time[1]='0';
+						}
+					}
+				}
+			}
+		}
+		HAL_Delay(1000);
+	}
+}
+void Execute_command(uint8_t* command) {
+	if((uint8_t *)strstr((char *)command, "PRINT(")==command) {
+		printMessage((char *)command+6);
+	} else if((uint8_t *)strstr((char *)command, "TIME")==command) {
+		printTime(command+4);
+	} else {
+		CDC_Transmit_FS((uint8_t *)"Invalid command", 15);
+	}
 }
 /* USER CODE END 0 */
 
@@ -111,115 +179,27 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   HD44780_Init(2);
   HD44780_Clear();
   HD44780_NoCursor();
-  /*HD44780_SetCursor(0,0);
-  HD44780_PrintStr("HELLO");
-  HD44780_SetCursor(10,1);
-  HD44780_PrintStr("WORLD");
-  HAL_Delay(2000);
 
-  HD44780_Clear();
-  HD44780_SetCursor(0,0);
-  HD44780_PrintStr("HELLO");
-  HAL_Delay(2000);
-  HD44780_NoBacklight();
-  HAL_Delay(2000);
-  HD44780_Backlight();
-
-  HAL_Delay(2000);
-  HD44780_Cursor();
-  HAL_Delay(2000);
-  HD44780_Blink();
-  HAL_Delay(5000);
-  HD44780_NoBlink();
-  HAL_Delay(2000);
-  HD44780_NoCursor();
-  HAL_Delay(2000);
-
-  HD44780_NoDisplay();
-  HAL_Delay(2000);
-  HD44780_Display();
-
-  HD44780_Clear();
-  HD44780_SetCursor(0,0);
-  HD44780_PrintStr("Learning STM32 with LCD is fun :-)");
-    for(int x=0; x<40; x=x+1)
-    {
-      HD44780_ScrollDisplayLeft();  //HD44780_ScrollDisplayRight();
-      HAL_Delay(500);
-    }
-
-    char snum[5];
-    for ( int x = 1; x <= 200 ; x++ )
-    {
-      itoa(x, snum, 10);
-      HD44780_Clear();
-      HD44780_SetCursor(0,0);
-      HD44780_PrintStr(snum);
-      HAL_Delay (1000);
-    }*/
-  int counter = 0;
-  int nextEvent=1;
-  int eventIntervals[]={8,10,9,12,8,9,11,10,14};
-  int eventSize=9-1;
-  int eventCounter=0;
-  int obstacleHeight=2;
-  int scrollSpeed=500;
-  int scrollMax=200;
-  int playerPosition=1;
-  char *screen1="                ";
-  char *screen2="                ";
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  counter++;
-	  for(int i = 1; i < 16; i++) {
-		  screen1[i-1]=screen1[i];
-		  screen2[i-1]=screen2[i];
+	  if(newData) {
+		  newData=0;
+		  Execute_command(dataBuffer);
 	  }
-	  screen1[15]=' ';
-	  screen2[15]=' ';
-	  if(playerPosition){
-		  screen2[0]='>';
-		  screen1[0]=' ';
-	  } else {
-		  screen1[0]='>';
-		  screen2[0]=' ';
-	  }
-	  if(counter==nextEvent) {
-		  if(obstacleHeight%2) {
-			  screen2[15]='O';
-			  screen1[15]=' ';
-		  } else {
-			  screen1[15]='O';
-			  screen2[15]=' ';
-		  }
-	  	  obstacleHeight=counter+nextEvent-eventCounter;
-		  nextEvent+=eventIntervals[eventCounter];
-	  	  if(eventCounter==eventSize) {
-	  			  eventCounter=0;
-	  	  } else {
-	  		  eventCounter++;
-	  	  }
-	  }
-	  if(!(counter & 1) && scrollSpeed>scrollMax){
-		  scrollSpeed--;
-	  }
-	  HD44780_Clear();
-	  HD44780_SetCursor(0,0);
-	  HD44780_PrintStr(screen1);
-	  HD44780_SetCursor(0,1);
-	  HD44780_PrintStr(screen2);
-	  HAL_Delay(scrollSpeed);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -232,16 +212,18 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL2;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -253,10 +235,16 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
+  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
@@ -309,6 +297,7 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 

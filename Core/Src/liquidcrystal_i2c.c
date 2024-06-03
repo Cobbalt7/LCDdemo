@@ -38,6 +38,10 @@ uint8_t special2[8] = {
         0b00110,
         0b00000
 };
+uint8_t special3[8] =
+{
+0b00000, 0b00000, 0b01010, 0b11111, 0b11111, 0b01110, 0b00100, 0b00000
+};
 
 void HD44780_Init(uint8_t rows)
 {
@@ -90,6 +94,7 @@ void HD44780_Init(uint8_t rows)
 
   HD44780_CreateSpecialChar(0, special1);
   HD44780_CreateSpecialChar(1, special2);
+  HD44780_CreateSpecialChar(2, special3);
 
   HD44780_Home();
 }
