@@ -9,3 +9,5 @@ List of available commands:
         Usage:
             Input: >>TIME
             Output: xx:xx:xx
+    3. EXIT
+        Exits the CLI program.

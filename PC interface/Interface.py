@@ -22,11 +22,11 @@ dateFormat='{:%H:%M:%S%z}'
 dateString=''
 try:
     while 1:
-        userinput=input(">> ")
-        if userinput=="exit":
+        userinput=input(">> ").upper()
+        if userinput=="EXIT":
             s.close()
             exit()
-        elif userinput=="help":
+        elif userinput=="HELP":
             f=open("help.txt", "r", encoding="utf-8")
             print(f.read())
             continue
