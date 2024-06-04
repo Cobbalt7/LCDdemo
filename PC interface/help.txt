@@ -1,0 +1,11 @@
+List of available commands:
+    1. PRINT()
+        Prints string between parentheses.
+        Usage: 
+            Input: >>PRINT(Hello world)
+            Output: Hello world
+    2. TIME
+        Prints current time.
+        Usage:
+            Input: >>TIME
+            Output: xx:xx:xx
